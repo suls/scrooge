@@ -13,9 +13,9 @@ import scoverage.ScoverageSbtPlugin
 
 object Scrooge extends Build {
   val branch = Process("git" :: "rev-parse" :: "--abbrev-ref" :: "HEAD" :: Nil).!!.trim
-  val suffix = if (branch == "master") "" else "-SNAPSHOT"
+  val suffix = if (branch == "master") "" else "" //-SNAPSHOT"
 
-  val libVersion = "4.3.0" + suffix
+  val libVersion = "4.3.1" + suffix
 
   // To build the develop branch you need to publish util, ostrich and finagle locally:
   // 'git checkout develop; sbt publishLocal' to publish SNAPSHOT versions of these projects.
@@ -65,7 +65,7 @@ object Scrooge extends Build {
     version := libVersion,
     organization := "com.twitter",
     crossScalaVersions := Seq("2.10.6", "2.11.7"),
-    scalaVersion := "2.11.7",
+    scalaVersion := "2.10.6",
 
     resolvers ++= Seq(
       "sonatype-public" at "https://oss.sonatype.org/content/groups/public"
@@ -255,7 +255,7 @@ object Scrooge extends Build {
       repository in bintray := "sbt-plugins",
       licenses += (("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html"))),
       bintrayOrganization in bintray := Some("twittercsl")
-  ).dependsOn(scroogeGenerator)
+  ).dependsOn(scroogeGenerator, scroogeLinter)
 
   lazy val scroogeLinter = Project(
     id = "scrooge-linter",

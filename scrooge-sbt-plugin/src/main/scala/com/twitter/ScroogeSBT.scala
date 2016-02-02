@@ -1,5 +1,6 @@
 package com.twitter.scrooge
 
+import com.twitter.scrooge.linter.{Linter, Config}
 import sbt._
 import Keys._
 
@@ -9,6 +10,17 @@ object ScroogeSBT extends AutoPlugin {
 
   private[this] def generatedExtensionPattern(language: String): String =
     if (language.endsWith("java")) "*.java" else "*.scala"
+
+  private[this] def lint(
+    log: Logger,
+    thriftFiles: Seq[File],
+    thriftIncludes: Seq[File]): Int = {
+      val c = new Config(
+        files =  thriftFiles.map(_.absolutePath),
+        includePaths = thriftIncludes.map(_.absolutePath)
+      )
+      new Linter(c).lint()
+  }
 
   private[this] def compile(
     log: Logger,
@@ -116,6 +128,11 @@ object ScroogeSBT extends AutoPlugin {
     val scroogeGen = TaskKey[Seq[File]](
       "scrooge-gen",
       "generate code from thrift files using scrooge"
+    )
+
+    val scroogeLint = TaskKey[Boolean](
+      "scrooge-lint",
+      "run scrooge linter on thrift files"
     )
 
     val scroogeLanguage = SettingKey[String](
@@ -243,6 +260,12 @@ object ScroogeSBT extends AutoPlugin {
       (outputDir ** generatedExtensionPattern(language)).get.toSeq
     },
     sourceGenerators <+= scroogeGen
+    ,
+    scroogeLint <<=
+      (streams, scroogeThriftSources, scroogeThriftIncludes) map {
+        (out, sources, inc) =>
+          lint(out.log, sources, inc) == 0
+      }
   )
 
   val packageThrift = mappings in (Compile, packageBin) ++= {
