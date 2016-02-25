@@ -1,3 +1,4 @@
+import org.scalajs.sbtplugin.cross.CrossProject
 import sbt._
 import Keys._
 import bintray.Plugin._
@@ -10,10 +11,12 @@ import sbtassembly.Plugin._
 import AssemblyKeys._
 import sbtbuildinfo.Plugin._
 import scoverage.ScoverageSbtPlugin
+import org.scalajs.sbtplugin.ScalaJSPlugin
+import ScalaJSPlugin.autoImport._
 
 object Scrooge extends Build {
   val branch = Process("git" :: "rev-parse" :: "--abbrev-ref" :: "HEAD" :: Nil).!!.trim
-  val suffix = if (branch == "master") "" else "-SNAPSHOT"
+  val suffix = if (branch == "master") "" else ""//-SNAPSHOT"
 
   val libVersion = "4.5.0" + suffix
 
@@ -143,13 +146,24 @@ object Scrooge extends Build {
     )
   )
 
+
+  def scalajsSettings: Project => Project =
+    _.enablePlugins(org.scalajs.sbtplugin.ScalaJSPlugin)
+      .settings(scalacOptions += sourceMapOpt)
+
+  val sourceMapOpt = {
+    val a = new java.io.File("").toURI.toString.replaceFirst("/$", "")
+    val g = "https://raw.githubusercontent.com/japgolly/scalaz/v7.2.0-JS" // TODO <----------------------------------------
+    s"-P:scalajs:mapSourceURI:$a->$g/"
+  }
+
   lazy val scrooge = Project(
     id = "scrooge",
     base = file("."),
     settings = Defaults.coreDefaultSettings ++
       sharedSettings
   ).aggregate(
-    scroogeGenerator, scroogeCore,
+    scroogeGenerator, scroogeCoreJS, scroogeCoreJVM,
     scroogeRuntime, scroogeSerializer, scroogeOstrich,
     scroogeLinter
   )
@@ -181,18 +195,21 @@ object Scrooge extends Build {
     test in assembly := {},  // Skip tests when running assembly.
     mainClass in assembly := Some("com.twitter.scrooge.Main")
   ).dependsOn(scroogeRuntime % "test")
-
-  lazy val scroogeCore = Project(
-    id = "scrooge-core",
-    base = file("scrooge-core"),
-    settings = Defaults.coreDefaultSettings ++
-      sharedSettings
+  lazy val scroogeCore = CrossProject(
+    "scrooge-core",
+    file("scrooge-core"),
+    CrossType.Full
+  ).settings(Defaults.coreDefaultSettings ++ sharedSettings : _*
   ).settings(
     name := "scrooge-core",
     libraryDependencies ++= Seq(
       "org.apache.thrift" % "libthrift" % libthriftVersion % "provided"
     )
   )
+
+  lazy val scroogeCoreJS = scroogeCore.js
+  lazy val scroogeCoreJVM = scroogeCore.jvm
+
 
   lazy val scroogeRuntime = Project(
     id = "scrooge-runtime",
@@ -204,7 +221,9 @@ object Scrooge extends Build {
     libraryDependencies ++= Seq(
       finagle("thrift")
     )
-  ).dependsOn(scroogeCore)
+  ).dependsOn(scroogeCoreJVM)
+
+
 
   lazy val scroogeOstrich = Project(
     id = "scrooge-ostrich",
@@ -239,7 +258,7 @@ object Scrooge extends Build {
       "org.slf4j" % "slf4j-log4j12" % "1.7.7" % "test",
       "org.apache.thrift" % "libthrift" % libthriftVersion % "provided"
     )
-  ).dependsOn(scroogeCore, scroogeGenerator % "test")
+  ).dependsOn(scroogeCoreJVM, scroogeGenerator % "test")
 
   lazy val scroogeSbtPlugin = Project(
     id = "scrooge-sbt-plugin",
